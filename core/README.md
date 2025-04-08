@@ -1,0 +1,1 @@
+python -m main   -p polices_simple.xlsx   -t topology_simple.json   -o configs

@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <title>防火墙配置生成器</title>
+    <style>
+        body { font-family: 'Arial', sans-serif; margin: 0; padding: 20px; background-color: #f5f5f5; color: #333; }
+        h1, h2, h3 { color: #2c3e50; }
+        .container { max-width: 900px; margin: 0 auto; background: #fff; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        .message { color: #27ae60; font-weight: bold; }
+        .error { color: #c0392b; font-weight: bold; }
+        form { margin: 20px 0; }
+        label { font-size: 14px; margin-right: 10px; }
+        input[type="file"], input[type="text"] { padding: 5px; margin: 5px 0; border: 1px solid #ddd; border-radius: 4px; }
+        input[type="submit"], button { background-color: #3498db; color: white; padding: 8px 15px; border: none; border-radius: 4px; cursor: pointer; transition: background-color 0.3s; }
+        input[type="submit"]:hover, button:hover { background-color: #2980b9; }
+        .logout-btn, .delete-btn { background-color: #e74c3c; margin-left: 10px; }
+        .logout-btn:hover, .delete-btn:hover { background-color: #c0392b; }
+        table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+        th, td { border: 1px solid #ddd; padding: 10px; text-align: left; }
+        th { background-color: #ecf0f1; color: #2c3e50; }
+        a { text-decoration: none; color: #3498db; }
+        a:hover { text-decoration: underline; }
+        details { margin: 10px 0; }
+        summary { cursor: pointer; font-weight: bold; color: #2c3e50; }
+        pre { background: #f9f9f9; padding: 10px; border-radius: 4px; }
+    </style>
+    <script>
+        function updateAction() {
+            const userId = "{{ user_id }}";
+            const pattern = encodeURIComponent(document.getElementById('pattern').value);
+            document.getElementById('downloadForm').action = `/download-config/${userId}/${pattern}`;
+        }
+    </script>
+</head>
+<body>
+    <div class="container">
+        <h1>防火墙配置生成器</h1>
+        <p>当前用户: {{ user_id }} <a href="{{ url_for('logout') }}"><button class="logout-btn">注销</button></a></p>
+
+        <details>
+            <summary>Excel 文件填写说明</summary>
+            <p>请按照以下要求填写工单 Excel 文件，确保数据正确解析：</p>
+            <ul>
+                <li><strong>数据起始行</strong>：从第 5 行（即 Excel 的第 4 行，索引从 0 开始）开始填写策略数据，前 4 行可用于标题或其他说明。</li>
+                <li><strong>结束标记</strong>：在策略数据结束后，添加一行包含 "策略规则说明：" 的内容，后续行将被忽略。</li>
+                <li><strong>列格式</strong>：共 9 列，按顺序填写以下内容（列名仅供参考，不需在文件中显式标注）：
+                    <ol>
+                        <li>序号 (seq)</li>
+                        <li>源 IP (src_ip)</li>
+                        <li>目的 IP (dst_ip)</li>
+                        <li>端口 (port)</li>
+                        <li>协议 (proto)</li>
+                        <li>开始时间 (start_time，可选)</li>
+                        <li>结束时间 (end_time，可选)</li>
+                        <li>动作 (action，如 permit 或 deny)</li>
+                        <li>长连接 (long_link，可选)</li>
+                    </ol>
+                </li>
+            </ul>
+            <p><strong>支持的 IP 地址格式</strong>：</p>
+            <pre>
+单 IP: 10.16.152.91
+完整范围: 10.16.152.91-10.16.152.92
+简写范围: 10.253.22.24-28
+子网: 10.246.240.0/20
+多 IP: 10.16.152.91,10.16.152.98,10.16.152.92（支持逗号、空格、中文逗号分隔）
+            </pre>
+            <p><strong>端口格式</strong>：支持单端口（如 80）、范围（如 81-86），用逗号、空格或中文逗号分隔。</p>
+            <p><strong>示例</strong>：</p>
+            <pre>
+| 2 | 10.16.152.91-10.16.152.92 | 10.253.22.24-28 | ICMP | permit | | | | |
+| 3 | 10.253.22.24-28 | 10.16.152.91,10.16.152.98,10.16.152.92 | 22,80 81-86 443 | udp | | | permit | |
+| 4 | 10.246.240.0/20 | 10.242.240.1 | 80 | udp | | | permit | |
+|   | 策略规则说明：          |                  |         |        | | |        | |
+            </pre>
+        </details>
+
+        <form method="post" action="{{ url_for('generate_config') }}" enctype="multipart/form-data">
+            <label for="policies_file">上传工单文件 (Excel):</label><br>
+            <input type="file" name="policies_file" accept=".xlsx" required><br><br>
+            <label for="topology_file">上传拓扑文件 (可选，默认 topology_simple.json):</label><br>
+            <input type="file" name="topology_file" accept=".json"><br><br>
+            <label for="ticket_id">工单号:</label><br>
+            <input type="text" name="ticket_id" id="ticket_id" required placeholder="例如: 2025022600001"><br><br>
+            <input type="submit" value="生成配置">
+        </form>
+
+        {% if message %}
+            <p class="{% if '失败' in message %}error{% else %}message{% endif %}">{{ message }}</p>
+            {% if not files %}
+                <p><a href="{{ url_for('index') }}"><button>返回生成页面</button></a></p>
+            {% endif %}
+        {% endif %}
+
+        <h2>下载配置文件</h2>
+        <form id="downloadForm" method="get" onsubmit="updateAction()">
+            <label for="pattern">正则表达式 (筛选文件名):</label>
+            <input type="text" id="pattern" name="pattern" value=".*" required>
+            <input type="submit" value="查询匹配文件">
+        </form>
+
+        <form method="post" action="{{ url_for('delete_configs', user_id=user_id) }}">
+            <button type="submit" class="delete-btn">删除所有配置文件</button>
+        </form>
+
+        {% if files %}
+            <h3>匹配的文件:</h3>
+            <table>
+                <tr><th>文件名</th><th>操作</th></tr>
+                {% for file in files %}
+                    <tr><td>{{ file.filename }}</td><td><a href="{{ file.download_url }}"><button>下载</button></a></td></tr>
+                {% endfor %}
+            </table>
+            <p><a href="{{ url_for('download_config_zip', user_id=user_id, pattern=request.args.get('pattern', '.*')) }}"><button>下载所有文件 (ZIP)</button></a></p>
+            <p><a href="{{ url_for('index') }}"><button>返回生成页面</button></a></p>
+        {% endif %}
+    </div>
+</body>
+</html>

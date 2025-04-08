@@ -1,0 +1,46 @@
+{
+  "firewalls": [
+     {
+      "name": "BJ",
+      "type": "华为",
+      "security_domains": [
+        {
+          "name": "OUT",
+          "ip_ranges": ["0.0.0.0/0"],
+          "connected_firewalls": [{"firewall": "test-FW1", "via_domain": "OUT"},
+            {"firewall": "GB-FW1", "via_domain": "Untrust"}
+          ]
+        }
+      ]
+    },
+    {
+      "name": "test-FW1",
+      "type": "华为",
+      "security_domains": [
+        {
+          "name": "CINT_DMZ",
+          "ip_ranges": [""]
+        },
+        {
+          "name": "INT_DMZ",
+          "ip_ranges": ["10.241.224.0/20","10.242.224.0/20"]
+        },
+        {
+          "name": "OUT",
+          "ip_ranges": [],
+          "connected_firewalls": [{"firewall": "BJ", "via_domain": "BJ"}]
+        }
+      ]
+    }
+  ],
+  "global_acl": [
+
+  ],
+  "explicit_paths": [
+    {
+      "start": {"firewall": "FW11", "domain": "DMZ"},
+      "end": {"firewall": "FW21", "domain": "test"},
+      "path": [["FW1", "DMZ"],["FW1", "CINT"], ["FW1", "OUT"],["FW2", "ICL"], ["FW2", "test"]]
+    }
+  ]
+}
